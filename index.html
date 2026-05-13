@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orquestación Multi-Agente POC — SabaTech</title>
+    <meta name="description" content="POC Demo de Orquestación Multi-Agente — Arquitectura con 6 agentes especializados, Kanban Pipeline, Heartbeat">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #141414;
+            --bg-card: #1a1a1a;
+            --text-primary: #fafafa;
+            --text-secondary: #a1a1aa;
+            --accent: #8b5cf6;
+            --accent-soft: #7c3aed;
+            --border: #262626;
+            --green: #22c55e;
+            --yellow: #eab308;
+            --blue: #3b82f6;
+            --orange: #f97316;
+            --red: #ef4444;
+            --cyan: #06b6d4;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+        header { border-bottom: 1px solid var(--border); padding: 20px 0; }
+        header .container { display: flex; justify-content: space-between; align-items: center; }
+        .logo { display: flex; align-items: center; gap: 10px; font-size: 1.2rem; font-weight: 700; }
+        .logo span { color: var(--accent); }
+        .badge-poc {
+            background: var(--accent);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .hero {
+            text-align: center;
+            padding: 80px 0 60px;
+            background: radial-gradient(ellipse at top, rgba(139,92,246,0.08), transparent 60%);
+        }
+        .hero h1 { font-size: 3rem; font-weight: 800; margin-bottom: 16px; letter-spacing: -0.02em; }
+        .hero h1 em { font-style: normal; color: var(--accent); }
+        .hero p { color: var(--text-secondary); font-size: 1.15rem; max-width: 650px; margin: 0 auto; }
+
+        /* Agent Grid */
+        .agents-section { padding: 60px 0; }
+        .agents-section h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 24px; text-align: center; }
+        .agents-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; }
+        .agent-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px 16px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .agent-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+        }
+        .agent-card.coder::before { background: var(--blue); }
+        .agent-card.security::before { background: var(--red); }
+        .agent-card.devops::before { background: var(--orange); }
+        .agent-card.research::before { background: var(--green); }
+        .agent-card.qa::before { background: var(--yellow); }
+        .agent-card.main::before { background: var(--accent); }
+        .agent-icon { font-size: 2rem; margin-bottom: 8px; }
+        .agent-card h4 { font-size: 0.9rem; font-weight: 600; margin-bottom: 4px; }
+        .agent-card .role { font-size: 0.75rem; color: var(--text-secondary); }
+        .agent-status {
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            margin-top: 8px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Pipeline */
+        .pipeline-section { padding: 40px 0; }
+        .pipeline-section h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 24px; text-align: center; }
+        .pipeline-flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            padding: 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+        .pipeline-step {
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-align: center;
+        }
+        .pipeline-arrow { color: var(--text-secondary); font-size: 1.2rem; }
+        .step-backlog { background: rgba(161,161,170,0.15); color: var(--text-secondary); }
+        .step-progress { background: rgba(59,130,246,0.15); color: var(--blue); }
+        .step-review { background: rgba(234,179,8,0.15); color: var(--yellow); }
+        .step-done { background: rgba(34,197,94,0.15); color: var(--green); }
+
+        /* Kanban */
+        .kanban-section { padding: 40px 0; }
+        .kanban-section h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 24px; text-align: center; }
+        .kanban-board {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+        .kanban-col {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+        }
+        .kanban-col h4 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .kanban-col h4 .count {
+            background: var(--border);
+            padding: 1px 7px;
+            border-radius: 9999px;
+            font-size: 0.7rem;
+        }
+        .kanban-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+        }
+        .kanban-card:last-child { margin-bottom: 0; }
+        .kanban-card .card-title { font-weight: 600; margin-bottom: 4px; }
+        .kanban-card .card-meta { font-size: 0.75rem; color: var(--text-secondary); }
+        .kanban-card .card-tags { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
+        .tag {
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            font-weight: 600;
+        }
+
+        /* Metrics */
+        .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; padding: 40px 0; }
+        .metric-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+        .metric-card .value { font-size: 2rem; font-weight: 800; }
+        .metric-card .label { font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; }
+
+        /* Heartbeat Timeline */
+        .timeline-section { padding: 40px 0; }
+        .timeline-section h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 24px; text-align: center; }
+        .timeline {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+        }
+        .timeline-item {
+            display: flex;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+        }
+        .timeline-item:last-child { border-bottom: none; }
+        .timeline-time {
+            color: var(--text-secondary);
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.8rem;
+            min-width: 70px;
+        }
+        .timeline-badge {
+            padding: 1px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .cta {
+            text-align: center;
+            padding: 60px 0;
+            border-top: 1px solid var(--border);
+            margin-top: 40px;
+        }
+        .cta a {
+            display: inline-block;
+            background: var(--accent);
+            color: white;
+            padding: 14px 32px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: background 0.2s;
+        }
+        .cta a:hover { background: var(--accent-soft); }
+        .cta p { color: var(--text-secondary); margin-top: 12px; font-size: 0.9rem; }
+
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 24px 0;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+        footer a { color: var(--accent); text-decoration: none; }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate { animation: fadeInUp 0.6s ease forwards; opacity: 0; }
+        .delay-1 { animation-delay: 0.1s; }
+        .delay-2 { animation-delay: 0.2s; }
+        .delay-3 { animation-delay: 0.3s; }
+        .delay-4 { animation-delay: 0.4s; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="logo">⚡ <span>SabaTech</span> Orquestación</div>
+            <div class="badge-poc">POC DEMO</div>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <h1>Orquestación <em>Multi-Agente</em></h1>
+            <p>Arquitectura con 6 agentes especializados trabajando 24/7 vía Heartbeat, Kanban Pipeline y Hindsight Memory.</p>
+        </div>
+    </section>
+
+    <section class="agents-section container animate delay-1">
+        <h2>🤖 Agents Active</h2>
+        <div class="agents-grid">
+            <div class="agent-card main">
+                <div class="agent-icon">🎩</div>
+                <h4>Alfred</h4>
+                <div class="role">Orchestrator</div>
+                <div class="agent-status"></div>
+            </div>
+            <div class="agent-card coder">
+                <div class="agent-icon">💻</div>
+                <h4>Coder</h4>
+                <div class="role">Implementation</div>
+                <div class="agent-status"></div>
+            </div>
+            <div class="agent-card security">
+                <div class="agent-icon">🛡️</div>
+                <h4>Security</h4>
+                <div class="role">Audit & Review</div>
+                <div class="agent-status"></div>
+            </div>
+            <div class="agent-card devops">
+                <div class="agent-icon">🔧</div>
+                <h4>DevOps</h4>
+                <div class="role">Infrastructure</div>
+                <div class="agent-status"></div>
+            </div>
+            <div class="agent-card research">
+                <div class="agent-icon">🔬</div>
+                <h4>Research</h4>
+                <div class="role">Analysis</div>
+                <div class="agent-status"></div>
+            </div>
+            <div class="agent-card qa">
+                <div class="agent-icon">✅</div>
+                <h4>QA-Tester</h4>
+                <div class="role">Quality</div>
+                <div class="agent-status"></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="pipeline-section container animate delay-2">
+        <h2>🔄 Pipeline Automático</h2>
+        <div class="pipeline-flow">
+            <div class="pipeline-step step-backlog">📋 Backlog</div>
+            <div class="pipeline-arrow">→</div>
+            <div class="pipeline-step step-progress">💻 Coder</div>
+            <div class="pipeline-arrow">→</div>
+            <div class="pipeline-step step-review">🛡️ Security</div>
+            <div class="pipeline-arrow">→</div>
+            <div class="pipeline-step step-review">✅ QA-Tester</div>
+            <div class="pipeline-arrow">→</div>
+            <div class="pipeline-step step-done">🎉 Done</div>
+        </div>
+    </section>
+
+    <section class="kanban-section container animate delay-2">
+        <h2>📋 Kanban Board</h2>
+        <div class="kanban-board">
+            <div class="kanban-col">
+                <h4 style="color:var(--text-secondary)">Backlog <span class="count">3</span></h4>
+                <div class="kanban-card">
+                    <div class="card-title">Integrate SAST scanner</div>
+                    <div class="card-meta">assignee: coder</div>
+                    <div class="card-tags"><span class="tag" style="background:rgba(139,92,246,0.15);color:var(--accent)">feature</span></div>
+                </div>
+                <div class="kanban-card">
+                    <div class="card-title">Setup monitoring</div>
+                    <div class="card-meta">assignee: devops</div>
+                    <div class="card-tags"><span class="tag" style="background:rgba(249,115,22,0.15);color:var(--orange)">infra</span></div>
+                </div>
+                <div class="kanban-card">
+                    <div class="card-title">E2E test suite</div>
+                    <div class="card-meta">assignee: qa-tester</div>
+                    <div class="card-tags"><span class="tag" style="background:rgba(234,179,8,0.15);color:var(--yellow)">testing</span></div>
+                </div>
+            </div>
+            <div class="kanban-col">
+                <h4 style="color:var(--blue)">In Progress <span class="count">2</span></h4>
+                <div class="kanban-card">
+                    <div class="card-title">API endpoint hardening</div>
+                    <div class="card-meta">assignee: coder · 45min</div>
+                    <div class="card-tags"><span class="tag" style="background:rgba(239,68,68,0.15);color:var(--red)">security</span></div>
+                </div>
+                <div class="kanban-card">
+                    <div class="card-title">Research LLM benchmarks</div>
+                    <div class="card-meta">assignee: research · 20min</div>
+                    <div class="card-tags"><span class="tag" style="background:rgba(34,197,94,0.15);color:var(--green)">research</span></div>
+                </div>
+            </div>
+            <div class="kanban-col">
+                <h4 style="color:var(--yellow)">Review <span class="count">1</span></h4>
+                <div class="kanban-card">
+                    <div class="card-title">RBAC middleware</div>
+                    <div class="card-meta">reviewer: security</div>
+                    <div class="card-tags"><span class="tag" style="background:rgba(239,68,68,0.15);color:var(--red)">critical</span></div>
+                </div>
+            </div>
+            <div class="kanban-col">
+                <h4 style="color:var(--green)">Done <span class="count">5</span></h4>
+                <div class="kanban-card">
+                    <div class="card-title">Docker compose setup</div>
+                    <div class="card-meta">devops · completed</div>
+                </div>
+                <div class="kanban-card">
+                    <div class="card-title">Auth module</div>
+                    <div class="card-meta">coder · completed</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="metrics container animate delay-3">
+        <div class="metric-card">
+            <div class="value" style="color:var(--green)">24/7</div>
+            <div class="label">Heartbeat Cycle</div>
+        </div>
+        <div class="metric-card">
+            <div class="value" style="color:var(--accent)">&lt;2min</div>
+            <div class="label">Response Time</div>
+        </div>
+        <div class="metric-card">
+            <div class="value" style="color:var(--blue)">12</div>
+            <div class="label">LLM Models Fallback</div>
+        </div>
+        <div class="metric-card">
+            <div class="value" style="color:var(--cyan)">∞</div>
+            <div class="label">Hindsight Memory</div>
+        </div>
+    </section>
+
+    <section class="timeline-section container animate delay-4">
+        <h2>💓 Último Heartbeat</h2>
+        <div class="timeline">
+            <div class="timeline-item">
+                <div class="timeline-time">17:30:12</div>
+                <span class="timeline-badge" style="background:rgba(34,197,94,0.15);color:var(--green)">HEARTBEAT</span>
+                <span>Alfred → ping cycle started</span>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-time">17:30:14</div>
+                <span class="timeline-badge" style="background:rgba(59,130,246,0.15);color:var(--blue)">CODE</span>
+                <span>Coder → Task #42 moved to in_progress</span>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-time">17:30:18</div>
+                <span class="timeline-badge" style="background:rgba(239,68,68,0.15);color:var(--red)">SECURITY</span>
+                <span>Security → Review completed for RBAC middleware</span>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-time">17:30:22</div>
+                <span class="timeline-badge" style="background:rgba(234,179,8,0.15);color:var(--yellow)">QA</span>
+                <span>QA-Tester → 3 test suites passed</span>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-time">17:30:25</div>
+                <span class="timeline-badge" style="background:rgba(34,197,94,0.15);color:var(--green)">OK</span>
+                <span>All agents → HEARTBEAT_OK</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta container">
+        <h2 style="font-size:1.8rem; font-weight:700; margin-bottom:16px;">¿Quieres orquestación multi-agente?</h2>
+        <p style="color:var(--text-secondary); margin-bottom:24px;">Este es un POC demo. Descubre cómo puedes automatizar tu desarrollo con agentes especializados.</p>
+        <a href="https://sabatech.dev/contact">Solicitar Demo Real →</a>
+        <p>Setup desde €2.999 · Enterprise €999/mes · ROI garantizado</p>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>© 2026 <a href="https://sabatech.dev">SabaTech</a> — Orquestación Multi-Agente POC Demo · Todos los datos son simulados</p>
+        </div>
+    </footer>
+</body>
+</html>
